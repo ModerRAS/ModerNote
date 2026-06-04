@@ -157,6 +157,20 @@ public sealed class Vault : IDisposable
         return UpsertObject(logicalPath);
     }
 
+    /// <summary>Import a file (copy) into the vault's assets/ directory and index it.</summary>
+    public ObjectDto ImportFile(string sourcePath, string? targetFolder)
+    {
+        if (!File.Exists(sourcePath))
+            throw new FileNotFoundException("Source file not found", sourcePath);
+
+        var filename = Path.GetFileName(sourcePath);
+        var logicalPath = UniqueLogicalPath("assets", targetFolder, filename);
+        var absolutePath = Path.Combine(Root, logicalPath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
+        File.Copy(sourcePath, absolutePath, overwrite: false);
+        return UpsertObject(logicalPath);
+    }
+
     /// <summary>Save XML content to an existing note.</summary>
     public ObjectDto SaveNoteXml(Guid objectId, string xml)
     {
