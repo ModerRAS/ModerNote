@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Modernote.Core\Modernote.Core.csproj" />
+    <ProjectReference Include="..\Modernote.Protocol\Modernote.Protocol.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
