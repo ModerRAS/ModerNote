@@ -1,6 +1,8 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:proto="using:Modernote.Protocol"
         x:Class="Modernote.Desktop.MainWindow"
+        x:DataType="Window"
         Title="Modernote"
         Width="1280" Height="800"
         MinWidth="800" MinHeight="600">
@@ -10,21 +12,21 @@
             <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
                 <!-- Toolbar -->
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,8,8,4" Spacing="4">
-                    <Button x:Name="NewNoteButton" Content="+" Width="32" Height="28" ToolTip.Tip="New Note"/>
-                    <Button x:Name="ScanButton" Content="↻" Width="32" Height="28" ToolTip.Tip="Scan Vault"/>
+                    <Button x:Name="NewNoteButton" Content="+" Width="32" Height="28" Click="OnNewNoteClick" ToolTip.Tip="New Note"/>
+                    <Button x:Name="ScanButton" Content="&#x21BB;" Width="32" Height="28" Click="OnScanClick" ToolTip.Tip="Scan Vault"/>
                 </StackPanel>
                 <!-- Search box -->
-                <TextBox Grid.Row="1" x:Name="SearchBox" Watermark="Search..." Margin="8,4" />
+                <TextBox Grid.Row="1" x:Name="SearchBox" PlaceholderText="Search..." Margin="8,4" />
                 <!-- Object tree -->
                 <ListBox Grid.Row="2" x:Name="ObjectList" Margin="0,4,0,0">
                     <ListBox.ItemTemplate>
-                        <DataTemplate>
+                        <DataTemplate x:DataType="proto:ObjectDto">
                             <TextBlock Text="{Binding DisplayName}" Padding="4,2"/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
                 <!-- Import button -->
-                <Button Grid.Row="3" x:Name="ImportButton" Content="Import File..." Margin="8" HorizontalAlignment="Stretch"/>
+                <Button Grid.Row="3" x:Name="ImportButton" Content="Import File..." Margin="8" HorizontalAlignment="Stretch" Click="OnImportClick"/>
                 <!-- Status info -->
                 <TextBlock Grid.Row="4" x:Name="StatusText" Margin="8,4" Text="No vault open" Opacity="0.6" FontSize="11"/>
             </Grid>
