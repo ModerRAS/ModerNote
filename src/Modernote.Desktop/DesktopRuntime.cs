@@ -20,6 +20,8 @@ public sealed class DesktopRuntime
         var root = await _client.OpenVaultAsync(path);
         State.VaultRoot = root;
         State.StatusMessage = $"Vault: {root}";
+        if (State.Host != null)
+            State.Host.VaultRoot = root;
         await ScanAsync();
     }
 
@@ -75,5 +77,14 @@ public sealed class DesktopRuntime
         var note = await _client.CreateNoteAsync(title, null);
         await ScanAsync();
         await SelectAsync(note);
+    }
+
+    public async Task SearchAsync(string query)
+    {
+        State.SearchResults.Clear();
+        if (string.IsNullOrWhiteSpace(query) || _client == null) return;
+        var results = await _client.SearchAsync(query, 50);
+        foreach (var r in results) State.SearchResults.Add(r);
+        State.StatusMessage = $"{results.Count} results for '{query}'";
     }
 }

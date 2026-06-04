@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Modernote.Client;
 using Modernote.Desktop.Editor;
@@ -34,8 +37,19 @@ public partial class MainWindow : Window
         _host = new EditorHost(EditorPanel);
         runtime.State.Host = _host;
 
+        // Set sidebar DataContext to enable bindings (StatusText, MetaPanel)
+        SidebarPanel.DataContext = runtime.State;
+
         // Wire selection change
         ObjectList.SelectionChanged += OnObjectSelected;
+
+        // Observe state changes for status bar
+        runtime.State.PropertyChanged += OnStatePropertyChanged;
+        UpdateStatusBar();
+
+        // Wire search
+        SearchBox.TextChanged += OnSearchTextChanged;
+        SearchResultsList.SelectionChanged += OnSearchResultSelected;
     }
 
     private async void OnObjectSelected(object? sender, SelectionChangedEventArgs e)
@@ -46,16 +60,13 @@ public partial class MainWindow : Window
             await _runtime.SelectAsync(obj);
             PageTitle.Text = obj.DisplayName;
             SaveButton.IsEnabled = true;
-            StatusText.Text = "Loaded";
+            _runtime.State.StatusMessage = "Loaded";
         }
     }
 
-    private async void OnSaveClick(object? sender, RoutedEventArgs e)
-    {
-        await SaveCurrentNoteAsync();
-    }
+    private void OnSaveClick(object? sender, RoutedEventArgs e) => _ = SaveCurrentNoteAsync();
 
-    private async void OnAddBlockClick(object? sender, RoutedEventArgs e)
+    private void OnAddBlockClick(object? sender, RoutedEventArgs e)
     {
         if (_host == null) return;
         var menu = BlockMenu.CreateAddBlockMenu(blockType =>
@@ -72,7 +83,6 @@ public partial class MainWindow : Window
     {
         if (_runtime == null) return;
         await _runtime.SaveCurrentNoteAsync();
-        StatusText.Text = "Saved";
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -80,6 +90,16 @@ public partial class MainWindow : Window
         if (e.Key == Key.S && e.KeyModifiers == KeyModifiers.Control)
         {
             _ = SaveCurrentNoteAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Z && e.KeyModifiers == KeyModifiers.Control)
+        {
+            OnUndoClick(null, null!);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Y && e.KeyModifiers == KeyModifiers.Control)
+        {
+            OnRedoClick(null, null!);
             e.Handled = true;
         }
         else if (e.Key == Key.Up && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
@@ -123,7 +143,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Import failed: {ex.Message}";
+                _runtime.State.StatusMessage = $"Import failed: {ex.Message}";
             }
         }
     }
@@ -138,5 +158,102 @@ public partial class MainWindow : Window
     {
         if (_runtime == null) return;
         await _runtime.ScanAsync();
+        UpdateStatusBar();
+    }
+
+    private async void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_runtime == null || SearchBox == null) return;
+        var query = SearchBox.Text?.Trim() ?? "";
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            ObjectList.ItemsSource = _runtime.State.Objects;
+            SearchResultsPanel.IsVisible = false;
+            _runtime.State.SearchResults.Clear();
+            UpdateStatusBar();
+            return;
+        }
+
+        // Filter sidebar ObjectList by DisplayName (real-time)
+        var filtered = _runtime.State.Objects
+            .Where(o => o.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        ObjectList.ItemsSource = filtered;
+
+        // Full-text content search for SearchResultsPanel
+        await _runtime.SearchAsync(query);
+        SearchResultsPanel.IsVisible = _runtime.State.SearchResults.Count > 0;
+    }
+
+    private async void OnSearchResultSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_runtime == null || e.AddedItems.Count == 0) return;
+        if (e.AddedItems[0] is SearchResultDto result)
+        {
+            await _runtime.SelectAsync(result.Object);
+            PageTitle.Text = result.Object.DisplayName;
+            SaveButton.IsEnabled = true;
+            _runtime.State.StatusMessage = "Loaded";
+            SearchBox.Text = string.Empty;
+            SearchResultsPanel.IsVisible = false;
+        }
+    }
+
+    private void OnStatePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(DesktopState.StatusMessage):
+                StatusBarInfo.Text = _runtime?.State.StatusMessage ?? "Ready";
+                break;
+            case nameof(DesktopState.IsDirty):
+            case nameof(DesktopState.SelectedObject):
+                UpdateStatusBar();
+                break;
+        }
+    }
+
+    private void UpdateStatusBar()
+    {
+        if (_runtime == null) return;
+        var state = _runtime.State;
+
+        StatusObjectCount.Text = $"{state.Objects.Count} objects";
+        StatusSelection.Text = state.SelectedObject != null
+            ? $"Selected: {state.SelectedObject.DisplayName}"
+            : "No selection";
+        StatusDirty.Text = state.IsDirty ? "\u25CF Unsaved" : "";
+        StatusDirty.Foreground = state.IsDirty
+            ? new SolidColorBrush(Color.FromRgb(0xCC, 0x88, 0x00))
+            : Brushes.Transparent;
+    }
+
+    // --- Undo / Redo ---
+
+    private void OnUndoClick(object? sender, RoutedEventArgs e)
+    {
+        if (_runtime == null || _host == null) return;
+        if (_runtime.State.UndoStack.Count == 0) return;
+        _runtime.State.RedoStack.Push(_host.SerializeDocument());
+        var prev = _runtime.State.UndoStack.Pop();
+        LoadXmlIntoEditor(prev);
+        _runtime.State.StatusMessage = "Undo";
+    }
+
+    private void OnRedoClick(object? sender, RoutedEventArgs e)
+    {
+        if (_runtime == null || _host == null) return;
+        if (_runtime.State.RedoStack.Count == 0) return;
+        _runtime.State.UndoStack.Push(_host.SerializeDocument());
+        var next = _runtime.State.RedoStack.Pop();
+        LoadXmlIntoEditor(next);
+        _runtime.State.StatusMessage = "Redo";
+    }
+
+    private void LoadXmlIntoEditor(string xml)
+    {
+        if (_host == null) return;
+        _host.LoadXml(xml);
     }
 }

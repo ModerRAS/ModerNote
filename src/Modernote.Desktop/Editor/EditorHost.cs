@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -16,6 +17,7 @@ public sealed class EditorHost
     public ObservableCollection<Block> Blocks { get; } = new();
     public string BlockKindTitle { get; set; } = "Untitled";
     public int CurrentIndex { get; set; } = -1;
+    public string? VaultRoot { get; set; }
 
     public EditorHost(StackPanel container)
     {
@@ -35,6 +37,20 @@ public sealed class EditorHost
         Version = 1,
         Children = Blocks.ToList()
     };
+
+    public string SerializeDocument()
+    {
+        return XmlNoteSerializer.Serialize(SaveDocument());
+    }
+
+    /// <summary>Alias for SerializeDocument, used by undo/redo.</summary>
+    public string SerializeXml() => SerializeDocument();
+
+    public void LoadXml(string xml)
+    {
+        var doc = XmlNoteSerializer.Parse(xml);
+        LoadDocument(doc);
+    }
 
     public void AddBlock(Block block, int afterIndex = -1)
     {
@@ -76,7 +92,7 @@ public sealed class EditorHost
         }
     }
 
-    private static Control BuildBlockControl(Block b)
+    private Control BuildBlockControl(Block b)
     {
         // Try inline editor first (for editable block types)
         var editor = BlockEditorFactory.CreateInlineEditor(b, () => { });
@@ -87,7 +103,7 @@ public sealed class EditorHost
         return RenderReadOnly(b);
     }
 
-    private static Control RenderReadOnly(Block b) => b switch
+    private Control RenderReadOnly(Block b) => b switch
     {
         HeadingBlock h => new TextBlock
         {
@@ -129,35 +145,93 @@ public sealed class EditorHost
             Margin = new Thickness(0, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch
         },
-        ImageBlock i => new TextBlock
-        {
-            Text = $"[Image: {i.Source}]",
-            Margin = new Thickness(0, 4)
-        },
-        VideoBlock v => new TextBlock
-        {
-            Text = $"[Video: {v.Source}]",
-            Margin = new Thickness(0, 4)
-        },
-        AudioBlock a => new TextBlock
-        {
-            Text = $"[Audio: {a.Source}]",
-            Margin = new Thickness(0, 4)
-        },
-        PdfBlock p => new TextBlock
-        {
-            Text = $"[PDF: {p.Source}]",
-            Margin = new Thickness(0, 4)
-        },
-        FileBlock f => new TextBlock
-        {
-            Text = $"[File: {f.Source}]",
-            Margin = new Thickness(0, 4)
-        },
+        ImageBlock i => RenderImage(i),
+        VideoBlock v => RenderMedia(v.Source, "\U0001F3AC", "Video"),
+        AudioBlock a => RenderMedia(a.Source, "\U0001F3B5", "Audio"),
+        PdfBlock p => RenderMedia(p.Source, "\U0001F4D5", "PDF"),
+        FileBlock f => RenderMedia(f.Source, "\U0001F4E6", "File"),
         _ => new TextBlock
         {
             Text = $"[Block: {b.GetType().Name}]",
             Margin = new Thickness(0, 4)
         }
     };
+
+    private Control RenderImage(ImageBlock i)
+    {
+        if (VaultRoot == null)
+            return new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 4),
+                Children =
+                {
+                    new TextBlock { Text = "\U0001F5BC", FontSize = 24 },
+                    new TextBlock { Text = i.Source, VerticalAlignment = VerticalAlignment.Center }
+                }
+            };
+
+        var path = Path.Combine(VaultRoot, i.Source.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(path))
+        {
+            try
+            {
+                var img = new Avalonia.Controls.Image
+                {
+                    Source = new Avalonia.Media.Imaging.Bitmap(path),
+                    MaxWidth = 600,
+                    Stretch = Avalonia.Media.Stretch.Uniform,
+                    Margin = new Thickness(0, 4)
+                };
+                return img;
+            }
+            catch
+            {
+                return new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Margin = new Thickness(0, 4),
+                    Children =
+                    {
+                        new TextBlock { Text = "\U0001F5BC", FontSize = 24 },
+                        new TextBlock { Text = i.Source, VerticalAlignment = VerticalAlignment.Center }
+                    }
+                };
+            }
+        }
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Thickness(0, 4),
+            Children =
+            {
+                new TextBlock { Text = "\U0001F5BC", FontSize = 24 },
+                new TextBlock { Text = $"[Missing: {i.Source}]", Foreground = Brushes.Red, VerticalAlignment = VerticalAlignment.Center }
+            }
+        };
+    }
+
+    private static Control RenderMedia(string source, string emoji, string label)
+    {
+        var border = new Border
+        {
+            Background = Brushes.LightGray,
+            Padding = new Thickness(8),
+            Margin = new Thickness(0, 4),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = emoji, FontSize = 24 },
+                    new TextBlock { Text = $"[{label}: {source}]", VerticalAlignment = VerticalAlignment.Center }
+                }
+            }
+        };
+        return border;
+    }
 }
