@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Xml.Linq;
 using Microsoft.Data.Sqlite;
 using Modernote.Core.Exceptions;
+using Modernote.Core.Extraction;
 using Modernote.Core.Import;
 using Modernote.Protocol;
 
@@ -302,6 +304,190 @@ public sealed class Vault : IDisposable
     private static string Capitalize(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s.Substring(1);
 
+    // === T17: Tags CRUD ===
+
+    public TagDto AddTag(Guid objectId, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new VaultException("Tag name cannot be empty");
+        var tagId = FindOrCreateTag(name);
+        using var cmd = Connection.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO object_tags (object_id, tag_id) VALUES ($oid, $tid)";
+        cmd.Parameters.AddWithValue("$oid", objectId.ToString());
+        cmd.Parameters.AddWithValue("$tid", tagId.ToString());
+        cmd.ExecuteNonQuery();
+        return new TagDto(tagId, name);
+    }
+
+    public void RemoveTag(Guid objectId, string name)
+    {
+        using var cmd = Connection.CreateCommand();
+        cmd.CommandText = @"
+            DELETE FROM object_tags WHERE object_id = $oid AND tag_id IN
+            (SELECT id FROM tags WHERE name = $name)";
+        cmd.Parameters.AddWithValue("$oid", objectId.ToString());
+        cmd.Parameters.AddWithValue("$name", name);
+        cmd.ExecuteNonQuery();
+    }
+
+    public List<TagDto> GetTags(Guid objectId)
+    {
+        var list = new List<TagDto>();
+        using var cmd = Connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT t.id, t.name FROM tags t
+            JOIN object_tags ot ON ot.tag_id = t.id
+            WHERE ot.object_id = $oid
+            ORDER BY t.name";
+        cmd.Parameters.AddWithValue("$oid", objectId.ToString());
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            list.Add(new TagDto(Guid.Parse(reader.GetString(0)), reader.GetString(1)));
+        return list;
+    }
+
+    private Guid FindOrCreateTag(string name)
+    {
+        using (var cmd = Connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT id FROM tags WHERE name = $n";
+            cmd.Parameters.AddWithValue("$n", name);
+            var existing = cmd.ExecuteScalar() as string;
+            if (existing != null) return Guid.Parse(existing);
+        }
+        var id = Guid.NewGuid();
+        using (var cmd = Connection.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO tags (id, name) VALUES ($id, $n) ON CONFLICT(name) DO NOTHING";
+            cmd.Parameters.AddWithValue("$id", id.ToString());
+            cmd.Parameters.AddWithValue("$n", name);
+            cmd.ExecuteNonQuery();
+        }
+        using (var cmd = Connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT id FROM tags WHERE name = $n";
+            cmd.Parameters.AddWithValue("$n", name);
+            return Guid.Parse((string)cmd.ExecuteScalar()!);
+        }
+    }
+
+    // === T17: Links CRUD ===
+
+    public LinkDto AddLink(Guid fromId, Guid? toId, string kind, string target)
+    {
+        var id = Guid.NewGuid();
+        using var cmd = Connection.CreateCommand();
+        cmd.CommandText = @"INSERT INTO links (id, from_object_id, to_object_id, link_kind, target)
+            VALUES ($id, $from, $to, $k, $t)";
+        cmd.Parameters.AddWithValue("$id", id.ToString());
+        cmd.Parameters.AddWithValue("$from", fromId.ToString());
+        cmd.Parameters.AddWithValue("$to", (object?)toId?.ToString() ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$k", kind);
+        cmd.Parameters.AddWithValue("$t", target);
+        cmd.ExecuteNonQuery();
+        return new LinkDto(id, fromId, toId, kind, target);
+    }
+
+    public List<LinkDto> GetLinks(Guid objectId)
+    {
+        var list = new List<LinkDto>();
+        using var cmd = Connection.CreateCommand();
+        cmd.CommandText = "SELECT id, from_object_id, to_object_id, link_kind, target FROM links WHERE from_object_id = $oid";
+        cmd.Parameters.AddWithValue("$oid", objectId.ToString());
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var toStr = reader.IsDBNull(2) ? null : reader.GetString(2);
+            list.Add(new LinkDto(
+                Guid.Parse(reader.GetString(0)),
+                Guid.Parse(reader.GetString(1)),
+                toStr != null ? Guid.Parse(toStr) : null,
+                reader.GetString(3),
+                reader.GetString(4)));
+        }
+        return list;
+    }
+
+    // === T18: Text Index Refresh ===
+
+    public void RefreshTextIndex(Guid objectId)
+    {
+        var obj = ResolveObject(objectId);
+        if (obj == null) throw new ObjectNotFoundException(objectId);
+
+        var absolutePath = Path.Combine(Root, obj.LogicalPath.Replace('/', Path.DirectorySeparatorChar));
+        var (body, extractor, error) = ExtractAndCache(obj, absolutePath);
+
+        // Extract title from content for XmlNote, otherwise use filename
+        string title;
+        if (obj.Kind == ObjectKind.XmlNote && error == null)
+        {
+            title = ExtractTitleFromXml(absolutePath) ?? Path.GetFileNameWithoutExtension(obj.LogicalPath);
+        }
+        else
+        {
+            title = Path.GetFileNameWithoutExtension(obj.LogicalPath);
+        }
+
+        // Delete old entries
+        using (var cmd = Connection.CreateCommand())
+        {
+            cmd.CommandText = "DELETE FROM object_text WHERE object_id = $id";
+            cmd.Parameters.AddWithValue("$id", objectId.ToString());
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "DELETE FROM object_fts WHERE object_id = $id";
+            cmd.ExecuteNonQuery();
+        }
+
+        // Insert new object_text entry
+        using (var cmd = Connection.CreateCommand())
+        {
+            cmd.CommandText = @"INSERT INTO object_text (object_id, title, body, extractor, status, error)
+                VALUES ($id, $t, $b, $e, $s, $err)";
+            cmd.Parameters.AddWithValue("$id", objectId.ToString());
+            cmd.Parameters.AddWithValue("$t", title);
+            cmd.Parameters.AddWithValue("$b", body);
+            cmd.Parameters.AddWithValue("$e", extractor);
+            cmd.Parameters.AddWithValue("$s", error == null ? "ok" : "failed");
+            cmd.Parameters.AddWithValue("$err", (object?)error ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
+
+        // Insert new object_fts entry
+        using (var cmd = Connection.CreateCommand())
+        {
+            cmd.CommandText = @"INSERT INTO object_fts (object_id, title, body, path) VALUES ($id, $t, $b, $p)";
+            cmd.Parameters.AddWithValue("$id", objectId.ToString());
+            cmd.Parameters.AddWithValue("$t", title);
+            cmd.Parameters.AddWithValue("$b", body);
+            cmd.Parameters.AddWithValue("$p", obj.LogicalPath);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private (string body, string extractor, string? error) ExtractAndCache(ObjectDto obj, string path)
+    {
+        if (!File.Exists(path))
+            return (string.Empty, "none", "File not found");
+        var result = TextExtractor.Extract(obj.Kind, path);
+        return (result.Body, result.Extractor, result.Error);
+    }
+
+    private static string? ExtractTitleFromXml(string path)
+    {
+        try
+        {
+            var doc = XDocument.Load(path);
+            var h1 = doc.Descendants()
+                .FirstOrDefault(e => string.Equals(e.Name.LocalName, "h1", StringComparison.OrdinalIgnoreCase));
+            return h1?.Value?.Trim();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -310,3 +496,5 @@ public sealed class Vault : IDisposable
         _disposed = true;
     }
 }
+
+
