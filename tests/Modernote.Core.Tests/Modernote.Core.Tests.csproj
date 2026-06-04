@@ -23,6 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modernote.Protocol\Modernote.Protocol.csproj" />
     <ProjectReference Include="..\..\src\Modernote.Core\Modernote.Core.csproj" />
+    <ProjectReference Include="..\..\src\Modernote.Client\Modernote.Client.csproj" />
+    <ProjectReference Include="..\..\src\Modernote.Service\Modernote.Service.csproj" />
   </ItemGroup>
 
 </Project>
