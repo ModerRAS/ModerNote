@@ -79,14 +79,14 @@ public class VaultFlowIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task Search_ReturnsEmpty_WhenNothingIndexed()
+    public async Task Search_ReturnsResults_WhenNoteCreated()
     {
         await _client.OpenVaultAsync(_vaultDir);
         var note = await _client.CreateNoteAsync("Searchable Title", null);
-        // Notes are not automatically indexed in FTS5 upon creation.
-        // Search returns empty until RefreshTextIndex is called.
+        // Notes are now automatically indexed in FTS5 upon creation via RefreshTextIndex.
         var results = await _client.SearchAsync("Searchable", 10);
-        Assert.Empty(results);
+        Assert.NotEmpty(results);
+        Assert.Contains(results, r => r.Object.Id == note.Id);
     }
 
     [Fact]

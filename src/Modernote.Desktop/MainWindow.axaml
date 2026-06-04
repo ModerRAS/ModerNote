@@ -1,14 +1,48 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Modernote.Desktop.MainWindow"
         Title="Modernote"
-        Width="800"
-        Height="600">
-    <TextBox Text="Hello, Modernote!"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center"
-             FontSize="24" />
+        Width="1280" Height="800"
+        MinWidth="800" MinHeight="600">
+    <Grid ColumnDefinitions="280,4,*">
+        <!-- Sidebar (left) -->
+        <Border Grid.Column="0" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+                <!-- Toolbar -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,8,8,4" Spacing="4">
+                    <Button x:Name="NewNoteButton" Content="+" Width="32" Height="28" ToolTip.Tip="New Note"/>
+                    <Button x:Name="ScanButton" Content="↻" Width="32" Height="28" ToolTip.Tip="Scan Vault"/>
+                </StackPanel>
+                <!-- Search box -->
+                <TextBox Grid.Row="1" x:Name="SearchBox" Watermark="Search..." Margin="8,4" />
+                <!-- Object tree -->
+                <ListBox Grid.Row="2" x:Name="ObjectList" Margin="0,4,0,0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayName}" Padding="4,2"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <!-- Import button -->
+                <Button Grid.Row="3" x:Name="ImportButton" Content="Import File..." Margin="8" HorizontalAlignment="Stretch"/>
+                <!-- Status info -->
+                <TextBlock Grid.Row="4" x:Name="StatusText" Margin="8,4" Text="No vault open" Opacity="0.6" FontSize="11"/>
+            </Grid>
+        </Border>
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns"/>
+        <!-- Main content area (right) -->
+        <Grid Grid.Column="2" RowDefinitions="Auto,*">
+            <!-- Page chrome -->
+            <Border Grid.Row="0" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="12,8">
+                <TextBlock x:Name="PageTitle" Text="No note selected" FontSize="14" FontWeight="SemiBold"/>
+            </Border>
+            <!-- Editor host -->
+            <ScrollViewer Grid.Row="1" Padding="24" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="EditorHost" Spacing="8">
+                    <TextBlock Text="Open or create a note to start" Opacity="0.5"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
 </Window>

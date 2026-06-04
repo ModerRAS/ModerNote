@@ -156,7 +156,9 @@ public sealed class Vault : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
         var initialXml = "<document version=\"1\"><h1>" + WebUtility.HtmlEncode(title) + "</h1></document>";
         File.WriteAllText(absolutePath, initialXml);
-        return UpsertObject(logicalPath);
+        var dto = UpsertObject(logicalPath);
+        RefreshTextIndex(dto.Id);
+        return dto;
     }
 
     /// <summary>Import a file (copy) into the vault's assets/ directory and index it.</summary>
