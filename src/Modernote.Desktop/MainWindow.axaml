@@ -15,7 +15,7 @@
                     <!-- Toolbar -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,8,8,4" Spacing="4">
                         <Button x:Name="NewNoteButton" Content="+" Width="32" Height="28" Click="OnNewNoteClick" ToolTip.Tip="New Note"/>
-                        <Button x:Name="SaveButton" Content="&#x1F4BE;" Width="32" Height="28" Click="OnSaveClick" ToolTip.Tip="Save Note"/>
+                        <Button x:Name="SaveButtonToolbar" Content="&#x1F4BE;" Width="32" Height="28" Click="OnSaveClick" ToolTip.Tip="Save Note"/>
                         <Button x:Name="UndoButton" Content="&#x21B6;" Width="32" Height="28" Click="OnUndoClick" ToolTip.Tip="Undo"/>
                         <Button x:Name="RedoButton" Content="&#x21B7;" Width="32" Height="28" Click="OnRedoClick" ToolTip.Tip="Redo"/>
                         <Button x:Name="ScanButton" Content="&#x21BB;" Width="32" Height="28" Click="OnScanClick" ToolTip.Tip="Scan Vault"/>
