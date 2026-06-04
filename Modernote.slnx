@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Modernote.Client/Modernote.Client.csproj" />
+    <Project Path="src/Modernote.Core/Modernote.Core.csproj" />
+    <Project Path="src/Modernote.Desktop/Modernote.Desktop.csproj" />
+    <Project Path="src/Modernote.Protocol/Modernote.Protocol.csproj" />
+    <Project Path="src/Modernote.Service/Modernote.Service.csproj" />
+  </Folder>
+</Solution>
