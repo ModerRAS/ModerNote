@@ -13,6 +13,7 @@
                 <!-- Toolbar -->
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,8,8,4" Spacing="4">
                     <Button x:Name="NewNoteButton" Content="+" Width="32" Height="28" Click="OnNewNoteClick" ToolTip.Tip="New Note"/>
+                    <Button x:Name="SaveButton" Content="&#x1F4BE;" Width="32" Height="28" Click="OnSaveClick" ToolTip.Tip="Save Note"/>
                     <Button x:Name="ScanButton" Content="&#x21BB;" Width="32" Height="28" Click="OnScanClick" ToolTip.Tip="Scan Vault"/>
                 </StackPanel>
                 <!-- Search box -->
@@ -37,11 +38,17 @@
         <Grid Grid.Column="2" RowDefinitions="Auto,*">
             <!-- Page chrome -->
             <Border Grid.Row="0" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="12,8">
-                <TextBlock x:Name="PageTitle" Text="No note selected" FontSize="14" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock x:Name="PageTitle" Text="No note selected" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                        <Button x:Name="SaveButton" Content="Save" Click="OnSaveClick" IsEnabled="False" ToolTip.Tip="Save note (Ctrl+S)"/>
+                        <Button x:Name="AddBlockButton" Content="+" Width="28" Height="28" Click="OnAddBlockClick" ToolTip.Tip="Add block"/>
+                    </StackPanel>
+                </Grid>
             </Border>
             <!-- Editor host -->
             <ScrollViewer Grid.Row="1" Padding="24" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel x:Name="EditorHost" Spacing="8">
+                <StackPanel x:Name="EditorPanel" Spacing="8">
                     <TextBlock Text="Open or create a note to start" Opacity="0.5"/>
                 </StackPanel>
             </ScrollViewer>

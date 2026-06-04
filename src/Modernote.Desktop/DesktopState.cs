@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Modernote.Desktop.Editor;
 using Modernote.Protocol;
 
 namespace Modernote.Desktop;
@@ -15,4 +16,7 @@ public partial class DesktopState : ObservableObject
 
     public ObservableCollection<ObjectDto> Objects { get; } = new();
     public ObservableCollection<SearchResultDto> SearchResults { get; } = new();
+
+    /// <summary>The active block editor host. Set by MainWindow on initialization.</summary>
+    public EditorHost? Host { get; set; }
 }

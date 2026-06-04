@@ -2,6 +2,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Modernote.Client;
+using Modernote.Core.Model;
+using Modernote.Core.Xml;
 using Modernote.Protocol;
 
 namespace Modernote.Desktop;
@@ -37,14 +39,35 @@ public sealed class DesktopRuntime
         {
             try
             {
-                State.EditorXml = await _client.LoadNoteAsync(obj.Id);
+                var xml = await _client.LoadNoteAsync(obj.Id);
+                State.EditorXml = xml;
+                if (State.Host != null)
+                {
+                    var doc = XmlNoteSerializer.Parse(xml);
+                    State.Host.LoadDocument(doc);
+                }
             }
             catch (Exception ex)
             {
                 State.EditorXml = $"<error>{ex.Message}</error>";
             }
         }
-        else State.EditorXml = string.Empty;
+        else
+        {
+            State.EditorXml = string.Empty;
+            State.Host?.Blocks.Clear();
+        }
+    }
+
+    public async Task SaveCurrentNoteAsync()
+    {
+        if (State.SelectedObject == null || State.Host == null) return;
+        var doc = State.Host.SaveDocument();
+        var xml = XmlNoteSerializer.Serialize(doc);
+        await _client.SaveNoteAsync(State.SelectedObject.Id, xml);
+        State.EditorXml = xml;
+        State.IsDirty = false;
+        State.StatusMessage = "Saved";
     }
 
     public async Task CreateNoteAsync(string title)
