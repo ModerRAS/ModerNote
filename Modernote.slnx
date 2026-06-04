@@ -6,4 +6,8 @@
     <Project Path="src/Modernote.Protocol/Modernote.Protocol.csproj" />
     <Project Path="src/Modernote.Service/Modernote.Service.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Modernote.Core.Tests/Modernote.Core.Tests.csproj" />
+    <Project Path="tests/Modernote.Desktop.Tests/Modernote.Desktop.Tests.csproj" />
+  </Folder>
 </Solution>

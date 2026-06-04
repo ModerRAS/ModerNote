@@ -1,0 +1,19 @@
+name: .NET Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Modernote.slnx
+      - run: dotnet build Modernote.slnx --no-restore --configuration Release
+      - run: dotnet test Modernote.slnx --no-build --configuration Release --verbosity normal
