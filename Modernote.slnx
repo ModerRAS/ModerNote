@@ -9,5 +9,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Modernote.Core.Tests/Modernote.Core.Tests.csproj" />
     <Project Path="tests/Modernote.Desktop.Tests/Modernote.Desktop.Tests.csproj" />
+    <Project Path="tests/Modernote.Protocol.Tests/Modernote.Protocol.Tests.csproj" />
   </Folder>
 </Solution>
